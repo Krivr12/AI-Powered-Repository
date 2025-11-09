@@ -3,12 +3,13 @@ const searchService = require('./searchService');
 const logger = require('../utils/logger');
 
 /**
- * Chat Service - RAG-based chatbot for thesis queries
+ * Chat Service - RAG-based chatbot with Query Rewriting
+ * Uses Llama 3.2 with semantic search and query optimization
  */
 
 class ChatService {
   /**
-   * Process a chat message using RAG (Retrieval Augmented Generation)
+   * Process a chat message using RAG with query rewriting
    * @param {string} message - User's chat message
    * @param {object} options - Chat options
    * @returns {Promise<object>} Chat response with answer and sources
@@ -19,8 +20,12 @@ class ChatService {
 
       logger.info(`Processing chat message: "${message}"`);
 
-      // Step 1: Retrieve relevant theses using semantic search
-      const relevantTheses = await searchService.semanticSearch(message, {
+      // Step 1: Rewrite/optimize the query for better semantic search
+      const optimizedQuery = await this.rewriteQuery(message, conversationHistory);
+      logger.info(`Original query: "${message}" → Optimized: "${optimizedQuery}"`);
+
+      // Step 2: Retrieve relevant theses using semantic search
+      const relevantTheses = await searchService.semanticSearch(optimizedQuery, {
         limit: topK,
         threshold: 0.3, // Lower threshold for broader context
       });
@@ -33,13 +38,13 @@ class ChatService {
         };
       }
 
-      // Step 2: Build context from retrieved theses
+      // Step 3: Build context from retrieved theses
       const context = this.buildContext(relevantTheses);
 
-      // Step 3: Generate response using LLAMA with RAG
+      // Step 4: Generate response using LLAMA with RAG
       const answer = await this.generateRAGResponse(message, context, conversationHistory);
 
-      // Step 4: Format sources
+      // Step 5: Format sources
       const sources = relevantTheses.map((thesis) => ({
         id: thesis._id,
         title: thesis.title,
@@ -65,6 +70,63 @@ class ChatService {
   }
 
   /**
+   * Rewrite/optimize user query for better semantic search
+   * @param {string} userQuery - Original user query
+   * @param {Array} conversationHistory - Previous conversation turns
+   * @returns {Promise<string>} Optimized search query
+   */
+  async rewriteQuery(userQuery, conversationHistory) {
+    try {
+      // Build context from conversation history if available
+      let historyContext = '';
+      if (conversationHistory.length > 0) {
+        historyContext = '\n\nPrevious conversation context:\n';
+        conversationHistory.slice(-3).forEach((turn) => {
+          // Only use last 3 turns to keep context focused
+          historyContext += `${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.content}\n`;
+        });
+      }
+
+      const prompt = `You are a query optimization assistant. Your task is to rewrite user questions into optimized search queries that will retrieve the most relevant academic theses from a repository.
+
+Instructions:
+- Extract key concepts, topics, and technical terms from the user's question
+- Expand abbreviations and acronyms (e.g., "AI" → "artificial intelligence")
+- Add related synonyms and domain-specific terms
+- Keep the query concise (1-2 sentences or key phrases)
+- Focus on the main topic and important keywords
+- If the question is already clear and specific, you can return it as-is or make minor improvements
+${historyContext}
+User question: ${userQuery}
+
+Optimized search query:`;
+
+      const optimizedQuery = await aiService.generateText(prompt, {
+        temperature: 0.3, // Lower temperature for more consistent, focused queries
+        maxTokens: 100,
+      });
+
+      // Clean up the response (remove quotes, extra whitespace, etc.)
+      let cleanedQuery = optimizedQuery.trim();
+      cleanedQuery = cleanedQuery.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
+      cleanedQuery = cleanedQuery.replace(/\n+/g, ' '); // Replace newlines with spaces
+      cleanedQuery = cleanedQuery.trim();
+
+      // Fallback to original query if optimization failed or produced empty result
+      if (!cleanedQuery || cleanedQuery.length < 3) {
+        logger.warn('Query rewriting produced empty result, using original query');
+        return userQuery;
+      }
+
+      return cleanedQuery;
+    } catch (error) {
+      logger.error(`Error rewriting query: ${error.message}`);
+      // Fallback to original query if rewriting fails
+      return userQuery;
+    }
+  }
+
+  /**
    * Build context string from relevant theses
    * @param {Array} theses - Array of relevant theses
    * @returns {string} Formatted context string
@@ -76,14 +138,17 @@ class ChatService {
       context += `Thesis ${index + 1}:\n`;
       context += `Title: ${thesis.title}\n`;
       context += `Abstract: ${thesis.abstract}\n`;
-      context += `Tags: ${thesis.tags.join(', ')}\n\n`;
+      if (thesis.tags && thesis.tags.length > 0) {
+        context += `Tags: ${thesis.tags.join(', ')}\n`;
+      }
+      context += '\n';
     });
 
     return context;
   }
 
   /**
-   * Generate RAG response using LLAMA
+   * Generate RAG response using LLAMA with context from theses
    * @param {string} userMessage - User's question
    * @param {string} context - Context from retrieved theses
    * @param {Array} conversationHistory - Previous conversation turns
@@ -114,8 +179,9 @@ Instructions:
 - Answer based on the provided thesis context
 - Be concise but informative
 - If the context doesn't contain enough information, say so
-- Reference specific theses when relevant
+- Reference specific theses when relevant (e.g., "According to Thesis 1..." or "The research on [topic] shows...")
 - If asked about topics not in the context, politely state that you don't have that information in the repository
+- Use natural, conversational language
 
 Answer:`;
 
@@ -200,4 +266,3 @@ Summary:`;
 const chatService = new ChatService();
 
 module.exports = chatService;
-
