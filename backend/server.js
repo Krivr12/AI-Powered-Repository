@@ -1,32 +1,38 @@
 require('dotenv').config();
 const app = require('./src/app');
 const connectDB = require('./src/config/database');
+const { ensureConnection } = require('./src/config/database');
 const aiService = require('./src/services/aiService');
 const logger = require('./src/utils/logger');
 
 const PORT = process.env.PORT || 5000;
 
 // Initialize database connection (for Vercel serverless)
-let dbConnected = false;
+let dbConnectionPromise = null;
 
 const initializeDB = async () => {
-  if (!dbConnected) {
-    try {
-      await connectDB();
-      dbConnected = true;
-      logger.info('✓ Database connected successfully');
-    } catch (error) {
-      logger.error(`Database connection error: ${error.message}`);
-      // Don't throw - allow function to continue
-    }
+  if (!dbConnectionPromise) {
+    dbConnectionPromise = (async () => {
+      try {
+        await connectDB();
+        logger.info('✓ Database connected successfully');
+        return true;
+      } catch (error) {
+        logger.error(`Database connection error: ${error.message}`);
+        // Reset promise so we can retry on next request
+        dbConnectionPromise = null;
+        return false;
+      }
+    })();
   }
+  return dbConnectionPromise;
 };
 
 // For Vercel serverless functions
 if (process.env.VERCEL) {
-  // Initialize DB on cold start
+  // Initialize DB on cold start (fire and forget, but store promise)
   initializeDB().catch(err => {
-    logger.error('Failed to initialize DB:', err);
+    logger.error('Failed to initialize DB on cold start:', err);
   });
 
   // Export the app as a serverless function handler

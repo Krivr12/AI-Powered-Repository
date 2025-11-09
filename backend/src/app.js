@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const errorHandler = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
+const { ensureConnection, isConnected } = require('./config/database');
 
 // Import routes
 const thesisRoutes = require('./routes/thesisRoutes');
@@ -67,6 +68,32 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.path}`);
   next();
+});
+
+// Database connection middleware (for serverless)
+// Ensures DB is connected before handling API requests
+app.use('/api', async (req, res, next) => {
+  try {
+    // Skip health check endpoint
+    if (req.path === '/health' || req.path === '/') {
+      return next();
+    }
+    
+    // Ensure database connection before processing API requests
+    if (!isConnected()) {
+      logger.info('Database not connected, attempting connection...');
+      await ensureConnection();
+      logger.info('Database connection ensured');
+    }
+    next();
+  } catch (error) {
+    logger.error(`Database connection middleware error: ${error.message}`);
+    res.status(503).json({
+      success: false,
+      message: 'Database connection failed. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
 });
 
 // Health check endpoint
