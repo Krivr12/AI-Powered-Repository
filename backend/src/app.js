@@ -48,11 +48,14 @@ const corsOptions = {
       callback(null, true);
     } else {
       logger.warn(`CORS blocked origin: ${normalizedOrigin}`);
-      callback(new Error('Not allowed by CORS'));
+      // Return false instead of error to properly handle CORS rejection
+      callback(null, false);
     }
   },
   credentials: true,
   optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
 // Middleware
