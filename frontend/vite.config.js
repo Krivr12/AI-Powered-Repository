@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://ai-powered-repository-serverbe.vercel.app/',
+        target: 'http://localhost:5000',
         changeOrigin: true,
       },
     },
