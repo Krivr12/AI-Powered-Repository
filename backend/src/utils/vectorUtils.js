@@ -54,6 +54,25 @@ const euclideanDistance = (vecA, vecB) => {
 };
 
 /**
+ * Calculate dot product between two vectors
+ * @param {Array<number>} vecA - First vector
+ * @param {Array<number>} vecB - Second vector
+ * @returns {number} Dot product value
+ */
+const dotProduct = (vecA, vecB) => {
+  if (!vecA || !vecB || vecA.length !== vecB.length) {
+    throw new Error('Vectors must be of the same length');
+  }
+
+  let product = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    product += vecA[i] * vecB[i];
+  }
+
+  return product;
+};
+
+/**
  * Normalize a vector to unit length
  * @param {Array<number>} vec - Vector to normalize
  * @returns {Array<number>} Normalized vector
@@ -66,6 +85,7 @@ const normalizeVector = (vec) => {
 
 module.exports = {
   cosineSimilarity,
+  dotProduct,
   euclideanDistance,
   normalizeVector,
 };

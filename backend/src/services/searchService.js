@@ -1,6 +1,6 @@
 const Thesis = require('../models/Thesis');
 const embeddingService = require('./embeddingService');
-const { cosineSimilarity } = require('../utils/vectorUtils');
+const { dotProduct } = require('../utils/vectorUtils');
 const logger = require('../utils/logger');
 
 /**
@@ -10,7 +10,7 @@ const logger = require('../utils/logger');
 class SearchService {
   /**
    * Perform semantic search using MongoDB Atlas Vector Search
-   * Falls back to manual cosine similarity if Atlas search is unavailable
+   * Falls back to manual dot product search if Atlas search is unavailable
    * @param {string} query - Search query text
    * @param {object} options - Search options
    * @returns {Promise<Array>} Array of relevant theses with similarity scores
@@ -35,7 +35,7 @@ class SearchService {
         logger.warn('Atlas Vector Search not available, falling back to manual search');
       }
 
-      // Fallback to manual cosine similarity search
+      // Fallback to manual dot product search
       const results = await this.manualVectorSearch(queryEmbedding, limit, threshold);
       logger.info(`Found ${results.length} results using manual search`);
       return results;
@@ -58,7 +58,7 @@ class SearchService {
       const pipeline = [
         {
           $vectorSearch: {
-            index: 'thesis_vector_index', // You need to create this index in Atlas
+            index: 'semanticsearch', // Vector search index name
             path: 'embeddings',
             queryVector: queryEmbedding,
             numCandidates: 100,
@@ -95,8 +95,9 @@ class SearchService {
   }
 
   /**
-   * Manual vector search using cosine similarity
-   * @param {Array<number>} queryEmbedding - Query embedding vector
+   * Manual vector search using dot product
+   * Uses dot product to match MongoDB Atlas Vector Search similarity metric
+   * @param {Array<number>} queryEmbedding - Query embedding vector (normalized)
    * @param {number} limit - Maximum number of results
    * @param {number} threshold - Minimum similarity threshold
    * @returns {Promise<Array>} Search results with similarity scores
@@ -106,12 +107,13 @@ class SearchService {
       // Get all theses with embeddings
       const allTheses = await Thesis.find({}).lean();
 
-      // Calculate similarity for each thesis
+      // Calculate dot product similarity for each thesis
+      // Since embeddings are normalized, dot product = cosine similarity
       const resultsWithScores = allTheses.map((thesis) => {
-        const similarity = cosineSimilarity(queryEmbedding, thesis.embeddings);
+        const score = dotProduct(queryEmbedding, thesis.embeddings);
         return {
           ...thesis,
-          score: similarity,
+          score,
           // Remove large embedding array from response
           embeddings: undefined,
         };
@@ -176,15 +178,16 @@ class SearchService {
       // Get all other theses
       const allTheses = await Thesis.find({ _id: { $ne: thesisId } }).lean();
 
-      // Calculate similarity scores
+      // Calculate similarity scores using dot product
+      // Since embeddings are normalized, dot product = cosine similarity
       const resultsWithScores = allTheses.map((thesis) => {
-        const similarity = cosineSimilarity(
+        const score = dotProduct(
           referenceThesis.embeddings,
           thesis.embeddings
         );
         return {
           ...thesis,
-          score: similarity,
+          score,
           embeddings: undefined,
         };
       });

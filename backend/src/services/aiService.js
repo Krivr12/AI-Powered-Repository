@@ -66,55 +66,6 @@ class AIService {
   }
 
   /**
-   * Generate embeddings from text
-   * @param {string} text - Text to embed
-   * @returns {Promise<Array<number>>} Embedding vector
-   */
-  async generateEmbeddings(text) {
-    try {
-      if (this.config.provider === 'ollama') {
-        // Ollama has native embedding support
-        const response = await this.client.embeddings({
-          model: this.config.embeddingModel,
-          prompt: text,
-        });
-        return response.embedding;
-      } else if (this.config.provider === 'groq') {
-        // Groq doesn't have native embeddings, so we'll create a simple hash-based embedding
-        // For production, you might want to use a dedicated embedding service
-        // or Ollama for embeddings even in production
-        logger.warn('Using simulated embeddings for Groq - consider using Ollama for embeddings');
-        return this.simulateEmbeddings(text);
-      }
-    } catch (error) {
-      logger.error(`Error generating embeddings: ${error.message}`);
-      throw new Error(`Embedding generation failed: ${error.message}`);
-    }
-  }
-
-  /**
-   * Simulate embeddings (fallback for providers without embedding support)
-   * This is a simple implementation - for production, use proper embedding models
-   * @param {string} text - Text to embed
-   * @returns {Array<number>} Simulated embedding vector
-   */
-  simulateEmbeddings(text) {
-    const dimension = 768; // Standard BERT-like dimension
-    const embedding = new Array(dimension).fill(0);
-    
-    // Simple hash-based embedding (for demo purposes)
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const index = charCode % dimension;
-      embedding[index] += charCode / 1000;
-    }
-    
-    // Normalize
-    const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    return embedding.map(val => val / (norm || 1));
-  }
-
-  /**
    * Check if the AI service is available
    * @returns {Promise<boolean>} Service availability
    */
