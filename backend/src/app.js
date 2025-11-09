@@ -26,17 +26,28 @@ const corsOptions = {
       }
     }
     
-    // In production, only allow specific origins
+    // Build allowed origins list
     const allowedOrigins = [
       process.env.FRONTEND_URL,
+      'https://ai-powered-repository-clientfe.vercel.app', // Explicitly add frontend URL
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:4173',
     ].filter(Boolean);
     
-    if (allowedOrigins.includes(origin)) {
+    // Normalize origin (remove trailing slash for comparison)
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    const normalizedAllowed = allowedOrigins.map(o => o.replace(/\/$/, ''));
+    
+    // Log for debugging (only in production to avoid spam)
+    if (process.env.NODE_ENV === 'production') {
+      logger.info(`CORS check - Origin: ${normalizedOrigin}, Allowed: ${normalizedAllowed.join(', ')}`);
+    }
+    
+    if (normalizedAllowed.includes(normalizedOrigin)) {
       callback(null, true);
     } else {
+      logger.warn(`CORS blocked origin: ${normalizedOrigin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
