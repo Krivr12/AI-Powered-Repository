@@ -4,7 +4,7 @@ Complete full-stack application with AI-powered semantic search and RAG chatbot.
 
 ## 🚀 **Live Demo**
 
-- **Frontend:** https://your-frontend.vercel.app
+- **Frontend:** [https://your-frontend.vercel.app](https://ai-powered-repository-clientfe.vercel.app/)
 - **Backend API:** https://your-backend.vercel.app
 
 ## 📁 **Project Structure**
